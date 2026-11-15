@@ -1,0 +1,8 @@
+# Finales de línea correctos en Mac, Linux y Windows, clone quien clone el proyecto:
+# los scripts de bash necesitan LF y los .bat de Windows necesitan CRLF.
+* text=auto
+*.sh       text eol=lf
+*.command  text eol=lf
+*.bat      text eol=crlf
+*.ps1      text
+*.png      binary

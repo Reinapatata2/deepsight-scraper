@@ -1,0 +1,20 @@
+# Configuración compartida por los scripts de Windows, Linux y macOS.
+# URL de la web que se analiza por defecto (pon aquí la de tu proyecto).
+# El script la propone al arrancar; pulsa Enter para usarla o escribe otra.
+URL=https://es.wikipedia.org/wiki/Wikipedia:Portada
+
+# Número máximo de páginas del mismo dominio que se recorren siguiendo enlaces.
+# 1 = solo la página indicada.
+MAX_PAGINAS=10
+
+# Traducción automática de las palabras que no están en diccionario.csv
+# (Wiktionary y, de reserva, MyMemory; solo se envía la palabra). si / no
+TRADUCTOR_ONLINE=si
+
+# Mostrar la traducción encontrada y pedir confirmación (Enter = correcta). si / no
+CONFIRMAR_TRADUCCION=si
+
+# Frases de contexto: palabras que se guardan antes y después de cada coincidencia
+PALABRAS_CONTEXTO=5
+# Máximo de frases guardadas por palabra en cada informe (0 = sin límite)
+MAX_FRASES=100

@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepSight · Estadísticas de scraping</title>
+<!--
+  Plantilla de los informes de estadísticas. La usan estadisticas_mac.sh,
+  estadisticas_linux.sh y estadisticas_windows.ps1: sustituyen la marca
+  __DATOS__ por los datos en JSON. Los colores están todos en :root.
+-->
+<style>
+  :root {
+    color-scheme: dark;
+    /* ---- Gama cromática de DeepSight (cámbiala aquí) ---- */
+    --fondo:            #0e1824;
+    --cabecera-1:       #1d3b59;
+    --cabecera-2:       #162e47;
+    --linea-cabecera:   #3d7fb0;
+    --tarjeta:          #132131;
+    --tarjeta-cabecera: #1a3450;
+    --borde:            #2a4561;
+    --borde-suave:      #213a53;
+    --campo:            #0d1823;
+    --acento:           #5fd4c4;
+    --titulo:           #eaf2fb;
+    --texto:            #d3dde8;
+    --texto-2:          #a9bacb;
+    --texto-suave:      #8da2b7;
+    --rejilla:          #22384f;
+    --resaltado:        rgba(95, 212, 196, .22);
+    /* ---- Colores de los gráficos (validados contra el fondo) ---- */
+    --s-es:       #3987e5;   /* español */
+    --s-en:       #d95926;   /* inglés */
+    --s-ambos:    #199e70;   /* igual en ambos */
+    --s-singular: #9085e9;
+    --s-plural:   #c98500;
+    --s-unica:    #5fd4c4;   /* gráficos de una sola serie */
+    --radio: 10px;
+    --fuente: "Nunito Sans", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--fondo); }
+  body { margin: 0; background: var(--fondo); color: var(--texto); font: 15px/1.5 var(--fuente); -webkit-font-smoothing: antialiased; }
+  a { color: var(--acento); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---------- Cabecera ---------- */
+  header.cab { background: linear-gradient(180deg, var(--cabecera-1), var(--cabecera-2)); border-bottom: 2px solid var(--linea-cabecera); }
+  .cab-in { max-width: 1080px; margin: 0 auto; padding: 22px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .marca { display: flex; align-items: center; gap: 18px; }
+  .marca img { width: 84px; height: 84px; border-radius: 50%; flex: none; }
+  .marca h1 { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 800; color: var(--titulo); letter-spacing: .2px; }
+  .marca p { margin: 4px 0 0; color: var(--texto-2); font-size: 16px; }
+  .sesion { color: var(--texto-2); font-size: 14px; text-align: right; }
+  .sesion b { color: var(--titulo); }
+  .chip-borde { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--borde); border-radius: 8px; padding: 6px 12px; color: var(--titulo); font-weight: 700; font-size: 14px; background: rgba(13, 24, 35, .35); margin-top: 6px; }
+
+  main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+
+  /* ---------- Tarjeta informativa (borde de acento) ---------- */
+  .info { background: var(--tarjeta); border: 1px solid var(--borde); border-left: 4px solid var(--acento); border-radius: var(--radio); padding: 18px 22px; margin-bottom: 22px; }
+  .info h2 { margin: 0 0 12px; color: var(--acento); font-size: 18px; font-weight: 800; }
+  .info-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .info-caja { background: var(--campo); border: 1px solid var(--borde-suave); border-radius: 8px; padding: 12px 14px; color: var(--texto); font-size: 14px; }
+  .info-caja b { color: var(--titulo); }
+  .info-caja ul { margin: 6px 0 0; padding-left: 18px; }
+  .info-caja li { word-break: break-all; }
+
+  /* ---------- Cifras ---------- */
+  .cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
+  .cifra { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; }
+  .cifra .et { color: var(--texto-suave); font-size: 13px; }
+  .cifra .val { color: var(--titulo); font-size: 28px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Secciones numeradas (como el formulario de DeepSight) ---------- */
+  section.sec { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); margin-bottom: 22px; overflow: hidden; }
+  .sec-cab { display: flex; align-items: center; gap: 12px; background: var(--tarjeta-cabecera); border-bottom: 1px solid var(--borde); padding: 13px 20px; }
+  .num { width: 28px; height: 28px; border-radius: 50%; background: #eef5fb; color: #13253a; font-weight: 800; font-size: 14px; display: grid; place-items: center; flex: none; }
+  .sec-cab h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--titulo); }
+  .sec-cuerpo { padding: 18px 20px 20px; }
+  .ayuda { color: var(--texto-suave); font-size: 13px; margin: 0 0 14px; }
+  .dos-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+  @media (max-width: 760px) { .dos-col { grid-template-columns: 1fr; } .marca h1 { font-size: 28px; } .marca img { width: 64px; height: 64px; } .sesion { text-align: left; } }
+
+  /* ---------- Leyenda ---------- */
+  .leyenda { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 14px; font-size: 13px; color: var(--texto-2); }
+  .leyenda span { display: inline-flex; align-items: center; gap: 7px; }
+  .mues { width: 12px; height: 12px; border-radius: 3px; display: inline-block; flex: none; }
+
+  /* ---------- Barras horizontales ---------- */
+  .barras { display: grid; grid-template-columns: minmax(90px, 200px) 1fr; gap: 8px 14px; align-items: center; }
+  .barras .et { color: var(--texto); font-size: 14px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .barras .et small { color: var(--texto-suave); }
+  .pista { display: flex; align-items: center; gap: 8px; min-height: 22px; background-image: linear-gradient(to right, var(--rejilla) 1px, transparent 1px); background-size: 25% 100%; }
+  .barra { display: flex; gap: 2px; height: 18px; }
+  .seg { height: 100%; min-width: 3px; cursor: default; }
+  .seg:last-child { border-radius: 0 4px 4px 0; }
+  .barra-val { color: var(--texto-2); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cero { color: var(--texto-suave); font-size: 13px; font-style: italic; }
+  @media (max-width: 560px) { .barras { grid-template-columns: 90px 1fr; } }
+
+  /* ---------- Barra segmentada (reparto) ---------- */
+  .reparto h3 { margin: 0 0 10px; font-size: 15px; color: var(--titulo); }
+  .reparto .barra { height: 26px; width: 100%; }
+  .reparto .seg:first-child { border-radius: 4px 0 0 4px; }
+  .reparto .seg:last-child { border-radius: 0 4px 4px 0; }
+  .reparto .seg:only-child { border-radius: 4px; }
+  .reparto ul { list-style: none; margin: 12px 0 0; padding: 0; font-size: 14px; }
+  .reparto li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--borde-suave); }
+  .reparto li .n { margin-left: auto; color: var(--titulo); font-variant-numeric: tabular-nums; }
+  .reparto li .p { color: var(--texto-suave); width: 58px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* ---------- Tablas ---------- */
+  .tabla-env { overflow-x: auto; border: 1px solid var(--borde-suave); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--borde-suave); vertical-align: top; }
+  th { background: var(--campo); color: var(--texto-2); font-weight: 700; font-size: 13px; white-space: nowrap; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: 0; }
+  td .url { word-break: break-all; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; background: var(--campo); border: 1px solid var(--borde-suave); border-radius: 999px; padding: 1px 9px; font-size: 12px; color: var(--texto-2); white-space: nowrap; }
+  .chip b { color: var(--titulo); font-weight: 700; }
+  .chip .mues { width: 8px; height: 8px; border-radius: 50%; }
+
+  /* ---------- Registro de frases ---------- */
+  .herr { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
+  .herr input { flex: 1 1 260px; background: var(--campo); border: 1px solid var(--borde); border-radius: 8px; color: var(--titulo); padding: 10px 12px; font: inherit; }
+  .herr input::placeholder { color: var(--texto-suave); }
+  .herr input:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+  .boton { background: transparent; border: 1px solid var(--borde); border-radius: 8px; color: var(--titulo); padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .boton:hover { border-color: var(--acento); }
+  .contador { color: var(--texto-suave); font-size: 13px; }
+  details.grupo { border: 1px solid var(--borde-suave); border-radius: 8px; margin-bottom: 8px; background: var(--campo); }
+  details.grupo > summary { cursor: pointer; padding: 11px 14px; display: flex; align-items: center; gap: 10px; list-style: none; color: var(--titulo); font-weight: 700; }
+  details.grupo > summary::-webkit-details-marker { display: none; }
+  details.grupo > summary::before { content: "▸"; color: var(--acento); transition: transform .15s; }
+  details.grupo[open] > summary::before { transform: rotate(90deg); }
+  details.grupo > summary .contador { margin-left: auto; font-weight: 400; }
+  ol.log { list-style: none; margin: 0; padding: 0 14px 10px; max-height: 460px; overflow-y: auto; }
+  ol.log li { padding: 9px 0; border-top: 1px solid var(--borde-suave); font-size: 14px; }
+  .frase { color: var(--texto); }
+  .frase mark { background: var(--resaltado); color: var(--titulo); border-radius: 3px; padding: 0 3px; font-weight: 700; }
+  .meta { display: block; margin-top: 3px; color: var(--texto-suave); font-size: 12px; word-break: break-all; }
+  .meta .veces { color: var(--acento); font-weight: 700; }
+  .vacio { color: var(--texto-suave); font-style: italic; padding: 8px 0; }
+
+  footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 32px; color: var(--texto-suave); font-size: 12px; text-align: center; }
+
+  /* ---------- Tooltip ---------- */
+  #tip { position: fixed; z-index: 10; pointer-events: none; background: #0a131d; border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--titulo); box-shadow: 0 6px 20px rgba(0,0,0,.45); opacity: 0; transition: opacity .1s; max-width: 280px; }
+  #tip .t-sub { color: var(--texto-2); }
+</style>
+</head>
+<body>
+<header class="cab">
+  <div class="cab-in">
+    <div class="marca">
+      <img id="logo" alt="Símbolo de DeepSight">
+      <div>
+        <h1>DeepSight</h1>
+        <p>Estadísticas de scraping del proyecto</p>
+      </div>
+    </div>
+    <div class="sesion">
+      <div>Generado: <b id="generado">—</b></div>
+      <div class="chip-borde" id="sistema">—</div>
+    </div>
+  </div>
+</header>
+
+<main id="app">
+  <p class="vacio">No hay datos: esta plantilla la rellenan los scripts de estadísticas.</p>
+</main>
+
+<footer id="pie"></footer>
+<div id="tip" role="tooltip"></div>
+
+<script>
+const DATOS = /*__DATOS__*/null;
+
+(function () {
+  "use strict";
+  if (!DATOS) return;
+
+  // ---------------- utilidades ----------------
+  const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const num = n => Number(n || 0).toLocaleString("es-ES");
+  const dec = n => Number(n || 0).toLocaleString("es-ES", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const pct = (a, b) => b ? (100 * a / b).toLocaleString("es-ES", { maximumFractionDigits: 1 }) + " %" : "0 %";
+  const fecha = f => { if (!f) return ""; const d = new Date(f); return isNaN(d) ? f : d.toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }); };
+  const urlCorta = u => { try { const x = new URL(u); return (x.host + decodeURIComponent(x.pathname + x.search)).replace(/\/$/, ""); } catch (e) { return u; } };
+  const COLOR = { es: "var(--s-es)", en: "var(--s-en)", ambos: "var(--s-ambos)", singular: "var(--s-singular)", plural: "var(--s-plural)" };
+  const NOMBRE_IDIOMA = { es: "Español", en: "Inglés", ambos: "Igual en ambos idiomas" };
+  const NOMBRE_NUMERO = { singular: "Singular", plural: "Plural", ambos: "Igual en singular y plural" };
+  const sec = (n, titulo, cuerpo) => `<section class="sec"><div class="sec-cab"><span class="num">${n}</span><h2>${titulo}</h2></div><div class="sec-cuerpo">${cuerpo}</div></section>`;
+
+  // ---------------- datos derivados ----------------
+  const informes = DATOS.informes || [];
+  const frases = DATOS.frases || [];
+  const terminos = (DATOS.terminos || []).map(t => {
+    const porIdioma = { es: 0, en: 0, ambos: 0 }, porNumero = { singular: 0, plural: 0, ambos: 0 };
+    (t.variantes || []).forEach(v => { porIdioma[v.idioma] = (porIdioma[v.idioma] || 0) + v.apariciones; porNumero[v.numero] = (porNumero[v.numero] || 0) + v.apariciones; });
+    return Object.assign({}, t, { porIdioma, porNumero, media: t.buscado ? t.total / t.buscado : 0 });
+  }).sort((a, b) => b.total - a.total || b.buscado - a.buscado || a.termino.localeCompare(b.termino, "es"));
+
+  const totIdioma = { es: 0, en: 0, ambos: 0 }, totNumero = { singular: 0, plural: 0, ambos: 0 };
+  terminos.forEach(t => { for (const k in totIdioma) totIdioma[k] += t.porIdioma[k] || 0; for (const k in totNumero) totNumero[k] += t.porNumero[k] || 0; });
+  const totalCoinc = terminos.reduce((s, t) => s + t.total, 0);
+  const totalPaginas = informes.reduce((s, i) => s + (i.paginas || 0), 0);
+  const totalPalabras = informes.reduce((s, i) => s + (i.palabras || 0), 0);
+
+  // Una misma variante puede pertenecer a varios términos (school: colegio y escuela): se suman
+  const mapaVar = new Map();
+  terminos.forEach(t => (t.variantes || []).forEach(v => {
+    if (!(v.apariciones > 0)) return;
+    const k = v.texto + "|" + v.idioma + "|" + v.numero;
+    if (!mapaVar.has(k)) mapaVar.set(k, Object.assign({}, v, { apariciones: 0, terminos: [] }));
+    const e = mapaVar.get(k); e.apariciones += v.apariciones; if (!e.terminos.includes(t.termino)) e.terminos.push(t.termino);
+  }));
+  const variantes = [...mapaVar.values()].map(v => Object.assign(v, { termino: v.terminos.join(", ") }));
+  variantes.sort((a, b) => b.apariciones - a.apariciones || a.texto.localeCompare(b.texto, "es"));
+  const paginas = (DATOS.paginas || []).slice().sort((a, b) => b.apariciones - a.apariciones);
+
+  // ---------------- cabecera ----------------
+  if (DATOS.logo) { document.getElementById("logo").src = DATOS.logo; const fav = document.createElement("link"); fav.rel = "icon"; fav.href = DATOS.logo; document.head.appendChild(fav); }
+  document.getElementById("generado").textContent = fecha(DATOS.generado);
+  document.getElementById("sistema").textContent = "Sistema: " + (DATOS.sistema || "—");
+  document.getElementById("pie").textContent = `Informe generado por ${DATOS.script || "el script de estadísticas"} · DeepSight · ${informes.length} informe(s) de scraping`;
+
+  // ---------------- piezas ----------------
+  const ESCALA = 86;   // % de la pista que ocupa la barra más larga (deja sitio al número)
+  function barrasApiladas(filas, claves, colores, nombres) {
+    const max = Math.max(1, ...filas.map(f => f.total));
+    return `<div class="barras">` + filas.map(f => {
+      if (!f.total) return `<div class="et" title="${esc(f.etiqueta)}">${esc(f.etiqueta)}</div><div class="pista"><span class="cero">sin coincidencias</span></div>`;
+      const segs = claves.filter(k => f.partes[k] > 0).map(k =>
+        `<div class="seg" style="flex:${f.partes[k]} 1 0;background:${colores[k]}" data-tip="<b>${esc(f.etiqueta)}</b><br><span class='t-sub'>${esc(nombres[k])}:</span> ${num(f.partes[k])} (${pct(f.partes[k], f.total)})"></div>`).join("");
+      return `<div class="et" title="${esc(f.etiqueta)}">${esc(f.etiqueta)}</div><div class="pista"><div class="barra" style="flex:0 0 ${(ESCALA * f.total / max).toFixed(3)}%">${segs}</div><span class="barra-val">${num(f.total)}</span></div>`;
+    }).join("") + `</div>`;
+  }
+  function barrasSimples(filas) {
+    const max = Math.max(1, ...filas.map(f => f.valor));
+    return `<div class="barras">` + filas.map(f =>
+      `<div class="et" title="${esc(f.titulo || f.etiqueta)}">${f.html || esc(f.etiqueta)}</div><div class="pista"><div class="barra" style="flex:0 0 ${(ESCALA * f.valor / max).toFixed(3)}%"><div class="seg" style="width:100%;background:var(--s-unica)" data-tip="<b>${esc(f.titulo || f.etiqueta)}</b><br>${num(f.valor)} coincidencias"></div></div><span class="barra-val">${num(f.valor)}</span></div>`).join("") + `</div>`;
+  }
+  function reparto(titulo, totales, nombres) {
+    const total = Object.values(totales).reduce((a, b) => a + b, 0);
+    const claves = Object.keys(totales).filter(k => totales[k] > 0);
+    const segs = claves.map(k => `<div class="seg" style="flex:${totales[k]} 1 0;background:${COLOR[k]}" data-tip="<b>${esc(nombres[k])}</b><br>${num(totales[k])} (${pct(totales[k], total)})"></div>`).join("");
+    const lista = Object.keys(totales).filter(k => k !== "ambos" || totales[k] > 0).map(k =>
+      `<li><span class="mues" style="background:${COLOR[k]}"></span>${esc(nombres[k])}<span class="n">${num(totales[k])}</span><span class="p">${pct(totales[k], total)}</span></li>`).join("");
+    return `<div class="reparto"><h3>${titulo}</h3>${total ? `<div class="barra">${segs}</div>` : `<p class="vacio">Sin coincidencias.</p>`}<ul>${lista}</ul></div>`;
+  }
+  const leyenda = (claves, nombres) => `<div class="leyenda">` + claves.map(k => `<span><i class="mues" style="background:${COLOR[k]}"></i>${esc(nombres[k])}</span>`).join("") + `</div>`;
+
+  // ---------------- construir página ----------------
+  let html = "";
+  const webs = [...new Set(informes.map(i => i.url))];
+  html += `<div class="info"><h2>Resumen del periodo analizado</h2><div class="info-rejilla">
+    <div class="info-caja"><b>Periodo:</b> ${esc(fecha(DATOS.periodo && DATOS.periodo.desde))} → ${esc(fecha(DATOS.periodo && DATOS.periodo.hasta))}<br>
+      <b>Informes:</b> ${num(informes.length)} · <b>Sistemas:</b> ${esc([...new Set(informes.map(i => i.sistema))].join(", ") || "—")}</div>
+    <div class="info-caja"><b>Webs analizadas (${webs.length}):</b><ul>${webs.map(w => `<li><a href="${esc(w)}" target="_blank" rel="noopener noreferrer">${esc(urlCorta(w))}</a></li>`).join("")}</ul></div>
+  </div></div>`;
+
+  const cifras = [["Informes", informes.length], ["Páginas analizadas", totalPaginas], ["Palabras leídas", totalPalabras], ["Términos buscados", terminos.length], ["Coincidencias", totalCoinc], ["Frases recogidas", frases.length]];
+  html += `<div class="cifras">` + cifras.map(([e, v]) => `<div class="cifra"><div class="et">${e}</div><div class="val">${num(v)}</div></div>`).join("") + `</div>`;
+
+  const clavesIdioma = ["es", "en"].concat(totIdioma.ambos ? ["ambos"] : []);
+  html += sec(1, "Coincidencias por término",
+    `<p class="ayuda">Total de apariciones de cada término en todos los informes, separadas por el idioma de la variante encontrada.</p>` +
+    leyenda(clavesIdioma, NOMBRE_IDIOMA) +
+    barrasApiladas(terminos.map(t => ({ etiqueta: t.termino, total: t.total, partes: t.porIdioma })), clavesIdioma, COLOR, NOMBRE_IDIOMA));
+
+  html += sec(2, "Reparto por idioma y por número",
+    `<div class="dos-col">${reparto("Idioma de las coincidencias", totIdioma, NOMBRE_IDIOMA)}${reparto("Singular o plural", totNumero, NOMBRE_NUMERO)}</div>`);
+
+  html += `<div class="dos-col">` +
+    sec(3, "Variantes más encontradas", variantes.length
+      ? `<p class="ayuda">Las 10 formas concretas que más aparecen.</p>` + barrasSimples(variantes.slice(0, 10).map(v => ({ etiqueta: v.texto, titulo: `${v.texto} (${v.termino} · ${v.idioma} · ${v.numero})`, html: `${esc(v.texto)} <small>${esc(v.idioma)}</small>`, valor: v.apariciones })))
+      : `<p class="vacio">Ninguna variante encontrada.</p>`) +
+    sec(4, "Páginas con más coincidencias", paginas.length
+      ? `<p class="ayuda">Las 10 páginas donde más aparecen los términos buscados.</p>` + barrasSimples(paginas.slice(0, 10).map(p => ({ etiqueta: urlCorta(p.url), titulo: p.url, valor: p.apariciones })))
+      : `<p class="vacio">Ninguna página con coincidencias.</p>`) +
+    `</div>`;
+
+  html += sec(5, "Detalle por término",
+    `<div class="tabla-env"><table><thead><tr><th>Término</th><th class="n">Veces buscado</th><th class="n">Encontrado</th><th class="n">Coincidencias</th><th class="n">Media</th><th class="n">Máximo</th><th>Variantes</th></tr></thead><tbody>` +
+    terminos.map(t => `<tr><td><b>${esc(t.termino)}</b></td><td class="n">${num(t.buscado)}</td><td class="n">${num(t.encontrado)} / ${num(t.buscado)}</td><td class="n">${num(t.total)}</td><td class="n">${dec(t.media)}</td><td class="n">${num(t.maximo)}</td><td><div class="chips">` +
+      (t.variantes || []).map(v => `<span class="chip"><i class="mues" style="background:${COLOR[v.idioma]}"></i>${esc(v.texto)} <b>${num(v.apariciones)}</b></span>`).join("") + `</div></td></tr>`).join("") +
+    `</tbody></table></div>`);
+
+  // Registro de frases: agrupadas por término, frases repetidas juntas (×n)
+  const porTermino = new Map();
+  frases.forEach(f => {
+    if (!porTermino.has(f.termino)) porTermino.set(f.termino, new Map());
+    const clave = (f.antes + "\u0001" + f.coincidencia + "\u0001" + f.despues).toLowerCase();
+    const g = porTermino.get(f.termino);
+    if (!g.has(clave)) g.set(clave, { f, veces: 0, urls: new Set(), variantes: new Set() });
+    const e = g.get(clave); e.veces++; e.urls.add(f.url); e.variantes.add(f.variante);
+  });
+  const ordenTerminos = [...porTermino.keys()].sort((a, b) => frases.filter(f => f.termino === b).length - frases.filter(f => f.termino === a).length);
+  let log = "";
+  if (!frases.length) {
+    log = `<p class="vacio">Estos informes no tienen frases guardadas (puede que se generaran con una versión anterior del scraper).</p>`;
+  } else {
+    log = `<div class="herr"><input id="filtro" type="search" placeholder="Filtrar frases… (p. ej. profesor, school, una URL)" aria-label="Filtrar frases"><button class="boton" id="abrir">Desplegar todo</button><button class="boton" id="cerrar">Plegar todo</button><span class="contador" id="cuenta"></span></div>`;
+    log += ordenTerminos.map(t => {
+      const grupos = [...porTermino.get(t).values()].sort((a, b) => b.veces - a.veces);
+      const total = grupos.reduce((s, g) => s + g.veces, 0);
+      return `<details class="grupo" data-termino="${esc(t)}"><summary>${esc(t)}<span class="contador" data-total="${total}" data-unicas="${grupos.length}">${num(total)} frases · ${num(grupos.length)} distintas</span></summary><ol class="log">` +
+        grupos.map(g => {
+          const urls = [...g.urls];
+          return `<li><span class="frase">… ${esc(g.f.antes)} <mark>${esc(g.f.coincidencia)}</mark> ${esc(g.f.despues)} …</span>` +
+            `<span class="meta">${g.veces > 1 ? `<span class="veces">×${g.veces}</span> · ` : ""}variante «${esc([...g.variantes].join("», «"))}» · ${esc(fecha(g.f.fecha))} · ` +
+            urls.slice(0, 3).map(u => `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(urlCorta(u))}</a>`).join(", ") + (urls.length > 3 ? ` y ${urls.length - 3} más` : "") + `</span></li>`;
+        }).join("") + `</ol></details>`;
+    }).join("");
+  }
+  html += sec(6, "Registro de frases encontradas", `<p class="ayuda">Contexto de cada coincidencia: las palabras de antes y de después en la página. Despliega un término para ver su registro.</p>` + log);
+
+  html += sec(7, "Informes incluidos",
+    `<div class="tabla-env"><table><thead><tr><th>Fecha</th><th>Sistema</th><th>Web</th><th class="n">Páginas</th><th class="n">Palabras</th><th>Fichero</th></tr></thead><tbody>` +
+    informes.slice().sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).map(i => `<tr><td>${esc(fecha(i.fecha))}</td><td>${esc(i.sistema)}</td><td><a class="url" href="${esc(i.url)}" target="_blank" rel="noopener noreferrer">${esc(urlCorta(i.url))}</a></td><td class="n">${num(i.paginas)}</td><td class="n">${num(i.palabras)}</td><td>${esc(i.fichero)}</td></tr>`).join("") +
+    `</tbody></table></div>`);
+
+  document.getElementById("app").innerHTML = html;
+
+  // ---------------- filtro del registro ----------------
+  const filtro = document.getElementById("filtro");
+  if (filtro) {
+    const grupos = [...document.querySelectorAll("details.grupo")];
+    const cuenta = document.getElementById("cuenta");
+    const actualizar = () => {
+      const q = filtro.value.trim().toLowerCase();
+      let visibles = 0;
+      grupos.forEach(d => {
+        let n = 0;
+        d.querySelectorAll("ol.log li").forEach(li => { const ok = !q || li.textContent.toLowerCase().includes(q) || d.dataset.termino.toLowerCase().includes(q); li.hidden = !ok; if (ok) n++; });
+        d.hidden = n === 0; visibles += n;
+        if (q) d.open = n > 0;
+      });
+      cuenta.textContent = q ? `${num(visibles)} frases coinciden` : "";
+    };
+    filtro.addEventListener("input", actualizar);
+    document.getElementById("abrir").onclick = () => grupos.forEach(d => { if (!d.hidden) d.open = true; });
+    document.getElementById("cerrar").onclick = () => grupos.forEach(d => d.open = false);
+  }
+
+  // ---------------- tooltip ----------------
+  const tip = document.getElementById("tip");
+  document.addEventListener("mousemove", e => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) { tip.style.opacity = 0; return; }
+    tip.innerHTML = el.dataset.tip;
+    const r = tip.getBoundingClientRect();
+    let x = e.clientX + 14, y = e.clientY + 14;
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+    if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 14;
+    tip.style.left = x + "px"; tip.style.top = y + "px"; tip.style.opacity = 1;
+  });
+})();
+</script>
+</body>
+</html>

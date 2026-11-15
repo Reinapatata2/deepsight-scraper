@@ -1,0 +1,15 @@
+# Ficheros del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Datos que genera cada persona en su ordenador (no se comparten).
+# Las carpetas se mantienen gracias a su .gitkeep.
+resultados/*
+!resultados/.gitkeep
+estadisticas/*
+!estadisticas/.gitkeep
+
+# Temporales de editores
+*.tmp
+*~
