@@ -176,7 +176,7 @@ El HTML es un único fichero autónomo: lleva el logo y los datos dentro, así q
 
 ## Personalizar el diseño
 
-- **Colores:** están en el bloque `:root` al principio de `recursos/plantilla_estadisticas.html`. Los tres sistemas usan esa plantilla. Los colores de los gráficos están validados para distinguirse sobre el fondo azul marino, también con daltonismo.
+- **Colores:** son la gama oficial de la web (`DeepSight-reports/public/css/base.css`: noche, marino, acero, niebla, menta, pizarra y claro), aplicada con los mismos usos que allí. Están en el bloque `:root` al principio de `recursos/plantilla_estadisticas.html`; si cambian en la web, cámbialos ahí. Los tres sistemas usan esa plantilla. Los colores de los gráficos (español, inglés, singular, plural) están validados para distinguirse sobre esos fondos, también con daltonismo; el acero no se usa en barras porque no llega al contraste mínimo.
 - **Logo:** `recursos/logo.png` es el logo oficial, copiado del repositorio de la web (`DeepSight-reports/public/assets/img/logo.png`). Se muestra igual que en la web: en un círculo con borde menta. Si el logo cambia en la web, sustituye este fichero. Solo afecta a los informes que se generen a partir de entonces.
 
 ## Notas para desarrollar

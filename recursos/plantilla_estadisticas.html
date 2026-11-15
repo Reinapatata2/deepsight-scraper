@@ -12,32 +12,49 @@
 <style>
   :root {
     color-scheme: dark;
-    /* ---- Gama cromática de DeepSight (cámbiala aquí) ---- */
-    --fondo:            #0e1824;
-    --cabecera-1:       #1d3b59;
-    --cabecera-2:       #162e47;
-    --linea-cabecera:   #3d7fb0;
-    --tarjeta:          #132131;
-    --tarjeta-cabecera: #1a3450;
-    --borde:            #2a4561;
-    --borde-suave:      #213a53;
-    --campo:            #0d1823;
-    --acento:           #5fd4c4;
-    --titulo:           #eaf2fb;
-    --texto:            #d3dde8;
-    --texto-2:          #a9bacb;
-    --texto-suave:      #8da2b7;
-    --rejilla:          #22384f;
-    --resaltado:        rgba(95, 212, 196, .22);
-    /* ---- Colores de los gráficos (validados contra el fondo) ---- */
-    --s-es:       #3987e5;   /* español */
-    --s-en:       #d95926;   /* inglés */
-    --s-ambos:    #199e70;   /* igual en ambos */
+    /* ---- Gama cromática oficial de DeepSight ----
+       Copiada de DeepSight-reports/public/css/base.css: si cambia en la web, cámbiala aquí. */
+    --c-noche:   #161925;
+    --c-marino:  #23395b;
+    --c-acero:   #406e8e;
+    --c-niebla:  #8ea8c3;
+    --c-menta:   #cbf7ed;
+    --c-pizarra: #1c2436;   /* superficie intermedia entre noche y marino */
+    --c-claro:   #e6eef5;   /* texto principal */
+
+    /* ---- Roles: los mismos usos que en la web ---- */
+    --fondo:            var(--c-noche);
+    --cabecera-1:       var(--c-noche);
+    --cabecera-2:       var(--c-marino);
+    --linea-cabecera:   var(--c-acero);
+    --tarjeta:          var(--c-pizarra);
+    --tarjeta-cabecera: var(--c-marino);
+    --borde:            var(--c-acero);
+    --borde-suave:      var(--c-marino);
+    --campo:            var(--c-noche);
+    --acento:           var(--c-menta);
+    --encabezado:       var(--c-menta);   /* títulos (h1-h3 en la web) */
+    --titulo:           var(--c-claro);   /* cifras y texto destacado */
+    --texto:            var(--c-claro);
+    --texto-2:          #bacbdc;          /* punto medio entre claro y niebla */
+    --texto-suave:      var(--c-niebla);
+    --rejilla:          var(--c-marino);
+    --resaltado:        rgba(203, 247, 237, .2);
+    --sombra:           0 2px 12px rgba(0, 0, 0, .35);
+
+    /* ---- Colores de los gráficos ----
+       Validados (daltonismo y contraste) sobre pizarra y noche. El acero no se usa
+       en barras: no llega a 3:1 sobre pizarra. */
+    --s-es:       #3987e5;          /* español */
+    --s-en:       #d95926;          /* inglés */
+    --s-ambos:    #199e70;          /* igual en ambos */
     --s-singular: #9085e9;
     --s-plural:   #c98500;
-    --s-unica:    #5fd4c4;   /* gráficos de una sola serie */
+    --s-unica:    var(--c-menta);   /* gráficos de una sola serie */
+
     --radio: 10px;
-    --fuente: "Nunito Sans", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+    --radio-pequeno: 6px;
+    --fuente: "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
   }
   * { box-sizing: border-box; }
   html { background: var(--fondo); }
@@ -46,40 +63,40 @@
   a:hover { text-decoration: underline; }
 
   /* ---------- Cabecera ---------- */
-  header.cab { background: linear-gradient(180deg, var(--cabecera-1), var(--cabecera-2)); border-bottom: 2px solid var(--linea-cabecera); }
+  header.cab { background: linear-gradient(120deg, var(--cabecera-1) 0%, var(--cabecera-2) 100%); border-bottom: 3px solid var(--linea-cabecera); }
   .cab-in { max-width: 1080px; margin: 0 auto; padding: 22px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
   .marca { display: flex; align-items: center; gap: 18px; }
   /* Igual que en la web de DeepSight: emblema en círculo con borde menta (el círculo recorta las esquinas) */
   .marca img { width: 96px; height: 96px; border-radius: 50%; flex: none; object-fit: cover;
-               border: 3px solid #cbf7ed; background: #161925; box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
-  .marca h1 { margin: 0; font-size: 36px; line-height: 1.1; font-weight: 800; color: var(--titulo); letter-spacing: .2px; }
-  .marca p { margin: 4px 0 0; color: var(--texto-2); font-size: 16px; }
-  .sesion { color: var(--texto-2); font-size: 14px; text-align: right; }
-  .sesion b { color: var(--titulo); }
-  .chip-borde { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--borde); border-radius: 8px; padding: 6px 12px; color: var(--titulo); font-weight: 700; font-size: 14px; background: rgba(13, 24, 35, .35); margin-top: 6px; }
+               border: 3px solid var(--c-menta); background: var(--c-noche); box-shadow: var(--sombra); }
+  .marca h1 { margin: 0; font-size: clamp(28px, 4vw, 40px); line-height: 1.1; font-weight: 700; color: var(--encabezado); letter-spacing: .02em; }
+  .marca p { margin: 4px 0 0; color: var(--texto-suave); font-size: 16px; }
+  .sesion { color: var(--texto-suave); font-size: 14px; text-align: right; }
+  .sesion b { color: var(--c-menta); }
+  .chip-borde { display: inline-flex; align-items: center; gap: 6px; border: 2px solid var(--borde); border-radius: var(--radio-pequeno); padding: 6px 12px; color: var(--titulo); font-weight: 700; font-size: 14px; background: rgba(22, 25, 37, .35); margin-top: 6px; }
 
   main { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
 
   /* ---------- Tarjeta informativa (borde de acento) ---------- */
-  .info { background: var(--tarjeta); border: 1px solid var(--borde); border-left: 4px solid var(--acento); border-radius: var(--radio); padding: 18px 22px; margin-bottom: 22px; }
-  .info h2 { margin: 0 0 12px; color: var(--acento); font-size: 18px; font-weight: 800; }
+  .info { background: var(--tarjeta); border: 1px solid var(--borde); border-left: 6px solid var(--acento); border-radius: var(--radio); padding: 18px 22px; margin-bottom: 22px; box-shadow: var(--sombra); }
+  .info h2 { margin: 0 0 12px; color: var(--encabezado); font-size: 18px; font-weight: 700; }
   .info-rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-  .info-caja { background: var(--campo); border: 1px solid var(--borde-suave); border-radius: 8px; padding: 12px 14px; color: var(--texto); font-size: 14px; }
+  .info-caja { background: var(--campo); border: 1px solid var(--borde-suave); border-radius: var(--radio-pequeno); padding: 12px 14px; color: var(--texto); font-size: 14px; }
   .info-caja b { color: var(--titulo); }
   .info-caja ul { margin: 6px 0 0; padding-left: 18px; }
   .info-caja li { word-break: break-all; }
 
   /* ---------- Cifras ---------- */
   .cifras { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 22px; }
-  .cifra { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; }
+  .cifra { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); padding: 14px 16px; box-shadow: var(--sombra); }
   .cifra .et { color: var(--texto-suave); font-size: 13px; }
   .cifra .val { color: var(--titulo); font-size: 28px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
 
   /* ---------- Secciones numeradas (como el formulario de DeepSight) ---------- */
-  section.sec { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); margin-bottom: 22px; overflow: hidden; }
-  .sec-cab { display: flex; align-items: center; gap: 12px; background: var(--tarjeta-cabecera); border-bottom: 1px solid var(--borde); padding: 13px 20px; }
-  .num { width: 28px; height: 28px; border-radius: 50%; background: #eef5fb; color: #13253a; font-weight: 800; font-size: 14px; display: grid; place-items: center; flex: none; }
-  .sec-cab h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--titulo); }
+  section.sec { background: var(--tarjeta); border: 1px solid var(--borde); border-radius: var(--radio); margin-bottom: 22px; overflow: hidden; box-shadow: var(--sombra); }
+  .sec-cab { display: flex; align-items: center; gap: 12px; background: var(--tarjeta-cabecera); border-bottom: 1px solid var(--borde); padding: 12px 20px; }
+  .num { width: 29px; height: 29px; border-radius: 50%; background: var(--c-menta); color: var(--c-noche); font-weight: 700; font-size: 15px; display: grid; place-items: center; flex: none; }
+  .sec-cab h2 { margin: 0; font-size: 18px; font-weight: 700; color: var(--encabezado); }
   .sec-cuerpo { padding: 18px 20px 20px; }
   .ayuda { color: var(--texto-suave); font-size: 13px; margin: 0 0 14px; }
   .dos-col { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
@@ -103,7 +120,7 @@
   @media (max-width: 560px) { .barras { grid-template-columns: 90px 1fr; } }
 
   /* ---------- Barra segmentada (reparto) ---------- */
-  .reparto h3 { margin: 0 0 10px; font-size: 15px; color: var(--titulo); }
+  .reparto h3 { margin: 0 0 10px; font-size: 15px; color: var(--encabezado); }
   .reparto .barra { height: 26px; width: 100%; }
   .reparto .seg:first-child { border-radius: 4px 0 0 4px; }
   .reparto .seg:last-child { border-radius: 0 4px 4px 0; }
@@ -114,7 +131,7 @@
   .reparto li .p { color: var(--texto-suave); width: 58px; text-align: right; font-variant-numeric: tabular-nums; }
 
   /* ---------- Tablas ---------- */
-  .tabla-env { overflow-x: auto; border: 1px solid var(--borde-suave); border-radius: 8px; }
+  .tabla-env { overflow-x: auto; border: 1px solid var(--borde-suave); border-radius: var(--radio-pequeno); }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--borde-suave); vertical-align: top; }
   th { background: var(--campo); color: var(--texto-2); font-weight: 700; font-size: 13px; white-space: nowrap; }
@@ -128,14 +145,15 @@
 
   /* ---------- Registro de frases ---------- */
   .herr { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
-  .herr input { flex: 1 1 260px; background: var(--campo); border: 1px solid var(--borde); border-radius: 8px; color: var(--titulo); padding: 10px 12px; font: inherit; }
+  .herr input { flex: 1 1 260px; background: var(--campo); border: 1px solid var(--borde); border-radius: var(--radio-pequeno); color: var(--titulo); padding: 10px 12px; font: inherit; }
   .herr input::placeholder { color: var(--texto-suave); }
-  .herr input:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
-  .boton { background: transparent; border: 1px solid var(--borde); border-radius: 8px; color: var(--titulo); padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .herr input:focus { outline: none; box-shadow: 0 0 0 3px var(--c-menta); }   /* foco como en la web */
+  .boton { background: transparent; border: 2px solid var(--borde); border-radius: var(--radio-pequeno); color: var(--titulo); padding: 8px 12px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
   .boton:hover { border-color: var(--acento); }
+  .boton:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--c-menta); }
   .contador { color: var(--texto-suave); font-size: 13px; }
-  details.grupo { border: 1px solid var(--borde-suave); border-radius: 8px; margin-bottom: 8px; background: var(--campo); }
-  details.grupo > summary { cursor: pointer; padding: 11px 14px; display: flex; align-items: center; gap: 10px; list-style: none; color: var(--titulo); font-weight: 700; }
+  details.grupo { border: 1px solid var(--borde-suave); border-radius: var(--radio-pequeno); margin-bottom: 8px; background: var(--campo); }
+  details.grupo > summary { cursor: pointer; padding: 11px 14px; display: flex; align-items: center; gap: 10px; list-style: none; color: var(--encabezado); font-weight: 700; }
   details.grupo > summary::-webkit-details-marker { display: none; }
   details.grupo > summary::before { content: "▸"; color: var(--acento); transition: transform .15s; }
   details.grupo[open] > summary::before { transform: rotate(90deg); }
@@ -151,7 +169,7 @@
   footer { max-width: 1080px; margin: 0 auto; padding: 0 16px 32px; color: var(--texto-suave); font-size: 12px; text-align: center; }
 
   /* ---------- Tooltip ---------- */
-  #tip { position: fixed; z-index: 10; pointer-events: none; background: #0a131d; border: 1px solid var(--borde); border-radius: 8px; padding: 8px 10px; font-size: 13px; color: var(--titulo); box-shadow: 0 6px 20px rgba(0,0,0,.45); opacity: 0; transition: opacity .1s; max-width: 280px; }
+  #tip { position: fixed; z-index: 10; pointer-events: none; background: var(--c-noche); border: 1px solid var(--borde); border-radius: var(--radio-pequeno); padding: 8px 10px; font-size: 13px; color: var(--titulo); box-shadow: 0 12px 32px rgba(0, 0, 0, .55); opacity: 0; transition: opacity .1s; max-width: 280px; }
   #tip .t-sub { color: var(--texto-2); }
 </style>
 </head>
