@@ -374,13 +374,53 @@ contar_y_contexto() {
 }
 
 origen_de() {   # http://host:puerto/a/b -> http://host:puerto
-    printf '%s' "$1" | sed -E 's#^([a-zA-Z]+://[^/?]*).*#\1#'
+    printf '%s' "$1" | sed -E 's#^([a-zA-Z][a-zA-Z0-9+.-]*://[^/?#]*).*#\1#'
+}
+
+# Codifica (%XX) lo que curl no acepta tal cual en la ruta: espacios, tildes, ñ,
+# comillas, < > { } | \ ^ ... Lo que ya venga codificado (%20) se respeta.
+url_segura() {
+    local o r
+    o="$(origen_de "$1")"; r="${1#"$o"}"
+    [ -z "$r" ] && { printf '%s' "$1"; return; }
+    printf '%s' "$o"
+    printf '%s' "$r" | od -An -tx1 -v | awk '
+        BEGIN { for (i = 0; i < 256; i++) H[sprintf("%02x", i)] = i
+                ok = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&()*+,;=%" sprintf("%c", 39) }
+        { for (j = 1; j <= NF; j++) { n = H[$j]; c = (n < 128) ? sprintf("%c", n) : ""
+              if (c != "" && index(ok, c)) printf "%s", c; else printf "%%%s", toupper($j) } }'
+}
+URL_RARA='*[!-A-Za-z0-9._~:/?#@!$&()*+,;=%'"'"']*'   # algún carácter que hay que codificar
+
+# Acepta la URL tal y como la escriba el usuario y la deja lista para curl:
+#   "  https://web.com/mi página "  ->  https://web.com/mi%20p%C3%A1gina
+#   localhost:3000/informes         ->  http://localhost:3000/informes
+#   HTTPS://WEB.COM                 ->  https://WEB.COM
+#   /ruta/a/pagina.html  o  ~/...   ->  file:///ruta/a/pagina.html
+preparar_url() {
+    local u="$1" esquema
+    # Fuera espacios, tabuladores, comillas y < > de los extremos (al copiar y pegar)
+    u="$(printf '%s' "$u" | tr -d '\r\n' | sed -E "s/^[[:space:]\"'<]+//; s/[[:space:]\"'>]+\$//")"
+    [ -z "$u" ] && return
+    case "$u" in
+        "~/"*) u="$HOME/${u#\~/}" ;;
+    esac
+    if printf '%s' "$u" | grep -qE '^[a-zA-Z][a-zA-Z0-9+.-]*://'; then
+        esquema="$(printf '%s' "${u%%://*}" | tr 'A-Z' 'a-z')"; u="$esquema://${u#*://}"
+    else
+        case "$u" in
+            //*) u="http:$u" ;;
+            /*)  u="file://$u" ;;
+            *)   u="http://$u" ;;
+        esac
+    fi
+    url_segura "$u"
 }
 
 resolver_url() {   # $1=URL base  $2=href
     local base="$1" href="$2" dir
     case "$href" in
-        http://*|https://*) ;;
+        [a-zA-Z]*://*) href="$(printf '%s' "${href%%://*}" | tr 'A-Z' 'a-z')://${href#*://}" ;;
         //*)  href="$(printf '%s' "$base" | sed -E 's#^([a-zA-Z]+:).*#\1#')$href" ;;
         /*)   href="$(origen_de "$base")$href" ;;
         \?*)  href="${base%%\?*}$href" ;;
@@ -401,7 +441,13 @@ extraer_enlaces() {   # $1=fichero html  $2=URL base  $3=origen permitido
         | sed -E "s/.*[hH][rR][eE][fF][[:space:]]*=[[:space:]]*[\"']//" | sed 's/&amp;/\&/g' \
         | while IFS= read -r h; do
             case "$h" in mailto:*|javascript:*|tel:*|data:*) continue ;; esac
+            # Otros esquemas que no son páginas web (whatsapp:, skype:, sms:...)
+            case "$h" in
+                *://*) ;;
+                *:*) case "${h%%:*}" in ''|*[!a-zA-Z0-9+.-]*) ;; *) continue ;; esac ;;
+            esac
             u="$(resolver_url "$2" "$h")"
+            case "$u" in $URL_RARA) u="$(url_segura "$u")" ;; esac
             case "$u" in "$3"*) ;; *) continue ;; esac
             case "$(printf '%s' "${u%%\?*}" | tr 'A-Z' 'a-z')" in
                 *.pdf|*.jpg|*.jpeg|*.png|*.gif|*.svg|*.webp|*.ico|*.css|*.js|*.zip|*.mp3|*.mp4|*.doc|*.docx|*.xls|*.xlsx) continue ;;
@@ -420,29 +466,46 @@ echo "============================================================"
 echo "  SCRAPER DE PALABRAS CLAVE  (Linux)"
 echo "============================================================"
 
-URL_DEF="$(tr -d '\r' < "$CONFIG" 2>/dev/null | sed -n 's/^URL=//p' | head -1)"
-MAX_DEF="$(tr -d '\r' < "$CONFIG" 2>/dev/null | sed -n 's/^MAX_PAGINAS=//p' | head -1)"
-TRADUCTOR_ONLINE="$(tr -d '\r' < "$CONFIG" 2>/dev/null | sed -n 's/^TRADUCTOR_ONLINE=//p' | head -1 | tr 'A-Z' 'a-z' | tr -d ' ')"
+# Lee CLAVE=valor de config.txt sin exigir un formato estricto: da igual
+# mayúsculas/minúsculas, espacios alrededor del "=", comillas o saltos de Windows.
+BOM="$(printf '\357\273\277')"
+leer_config() {
+    [ -f "$CONFIG" ] || return 0
+    tr -d '\r' < "$CONFIG" | sed "1s/^$BOM//" | awk -v k="$1" '
+        BEGIN { k = toupper(k) }
+        { l = $0; sub(/^[ \t]+/, "", l)
+          if (l ~ /^#/) next
+          p = index(l, "="); if (!p) next
+          clave = substr(l, 1, p - 1); sub(/[ \t]+$/, "", clave)
+          if (toupper(clave) != k) next
+          v = substr(l, p + 1); sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+          if (length(v) >= 2 && (v ~ /^".*"$/ || v ~ /^\047.*\047$/)) v = substr(v, 2, length(v) - 2)
+          print v; exit }'
+}
+
+URL_DEF="$(leer_config URL)"
+MAX_DEF="$(leer_config MAX_PAGINAS | tr -d ' ')"
+TRADUCTOR_ONLINE="$(leer_config TRADUCTOR_ONLINE | tr 'A-Z' 'a-z' | tr -d ' ')"
 [ "$TRADUCTOR_ONLINE" = "no" ] || TRADUCTOR_ONLINE="si"
-CONFIRMAR_TRADUCCION="$(tr -d '\r' < "$CONFIG" 2>/dev/null | sed -n 's/^CONFIRMAR_TRADUCCION=//p' | head -1 | tr 'A-Z' 'a-z' | tr -d ' ')"
+CONFIRMAR_TRADUCCION="$(leer_config CONFIRMAR_TRADUCCION | tr 'A-Z' 'a-z' | tr -d ' ')"
 [ "$CONFIRMAR_TRADUCCION" = "no" ] || CONFIRMAR_TRADUCCION="si"
-PALABRAS_CONTEXTO="$(tr -d '\r' < "$CONFIG" 2>/dev/null | sed -n 's/^PALABRAS_CONTEXTO=//p' | head -1 | tr -d ' ')"
+PALABRAS_CONTEXTO="$(leer_config PALABRAS_CONTEXTO | tr -d ' ')"
 case "$PALABRAS_CONTEXTO" in ''|*[!0-9]*) PALABRAS_CONTEXTO=5 ;; esac
-MAX_FRASES="$(tr -d '\r' < "$CONFIG" 2>/dev/null | sed -n 's/^MAX_FRASES=//p' | head -1 | tr -d ' ')"
+MAX_FRASES="$(leer_config MAX_FRASES | tr -d ' ')"
 case "$MAX_FRASES" in ''|*[!0-9]*) MAX_FRASES=100 ;; esac
 
-URL="${1:-}"
+URL="$(preparar_url "${1:-}")"
 if [ -z "$URL" ]; then
     echo "Pulsa Enter para usar la URL que aparece entre corchetes (la de config/config.txt) o escribe otra."
-    printf 'URL de la web [%s]: ' "$URL_DEF"
-    IFS= read -r URL || URL=""
-    URL="${URL:-$URL_DEF}"
+    echo "Vale cualquier dirección: con o sin http://, con espacios o tildes, localhost:3000, una IP..."
+    while [ -z "$URL" ]; do
+        printf 'URL de la web [%s]: ' "$URL_DEF"
+        if ! IFS= read -r URL && [ -z "$URL" ] && [ -z "$URL_DEF" ]; then break; fi
+        URL="$(preparar_url "${URL:-$URL_DEF}")"
+        [ -z "$URL" ] && echo "   No hay ninguna URL en config/config.txt: escribe una."
+    done
+    [ -z "$URL" ] && { echo "No se ha indicado ninguna URL. Saliendo."; exit 1; }
 fi
-URL="$(printf '%s' "$URL" | sed 's/^ *//; s/ *$//')"
-case "$URL" in
-    http://*|https://*|file://*) ;;
-    *) URL="http://$URL" ;;
-esac
 MAX_PAGINAS="${2:-${MAX_DEF:-10}}"
 case "$MAX_PAGINAS" in ''|*[!0-9]*|0) MAX_PAGINAS=1 ;; esac
 
@@ -485,7 +548,8 @@ while [ $i -lt ${#COLA[@]} ] && [ ${#P_URL[@]} -lt "$MAX_PAGINAS" ]; do
     u="${COLA[$i]}"; i=$((i + 1))
     n=${#P_URL[@]}
     f="$TMP/p$n.html"
-    info="$(curl -sSL --max-time 20 --max-redirs 5 -A "$USER_AGENT" -o "$f" \
+    # -g: los [ ] { } de la URL son texto normal, no patrones de curl
+    info="$(curl -gsSL --max-time 20 --max-redirs 5 -A "$USER_AGENT" -o "$f" \
             -w '%{http_code}|%{content_type}|%{url_effective}' "$u" 2>"$TMP/err")"
     if [ $? -ne 0 ]; then
         echo "  [ERROR] $u -> $(head -1 "$TMP/err")"; continue
@@ -493,7 +557,11 @@ while [ $i -lt ${#COLA[@]} ] && [ ${#P_URL[@]} -lt "$MAX_PAGINAS" ]; do
     codigo="${info%%|*}"; resto="${info#*|}"; tipo="${resto%%|*}"; final="${resto#*|}"
     case "$u" in file://*) codigo=200 ;; esac
     case "$codigo" in 2??) ;; *) echo "  [HTTP $codigo] $u (omitida)"; continue ;; esac
-    case "$tipo" in ''|*html*|*text/plain*) ;; *) echo "  [$tipo] $u (no es HTML, omitida)"; continue ;; esac
+    # Se lee cualquier página de texto: HTML, XML (como los informes de DeepSight), JSON, texto...
+    case "$(printf '%s' "$tipo" | tr 'A-Z' 'a-z')" in
+        ''|*html*|*xml*|*json*|text/*) ;;
+        *) echo "  [$tipo] $u (no es una página de texto, omitida)"; continue ;;
+    esac
 
     html_a_palabras "$f" "$TMP/p$n"
     palabras=$(wc -l < "$TMP/p$n.tok" | tr -d ' ')

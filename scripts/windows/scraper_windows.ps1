@@ -291,7 +291,8 @@ function Descargar([string]$u) {
     }
     $r = Invoke-WebRequest -Uri $u -UseBasicParsing -UserAgent $USER_AGENT -TimeoutSec 20 -MaximumRedirection 5
     $tipo = [string]($r.Headers['Content-Type'] -join ';')
-    if ($tipo -and $tipo -notmatch 'html|text/plain') { throw "no es HTML ($tipo)" }
+    # Se lee cualquier página de texto: HTML, XML (como los informes de DeepSight), JSON, texto...
+    if ($tipo -and $tipo -notmatch 'html|xml|json|text/') { throw "no es una página de texto ($tipo)" }
     # Decodificar respetando el charset (UTF-8 por defecto)
     $enc = $UTF8
     if ($tipo -match 'charset=([\w-]+)') { try { $enc = [Text.Encoding]::GetEncoding($Matches[1]) } catch {} }
@@ -341,6 +342,8 @@ function Extraer-Enlaces([string]$html, [string]$base, [string]$origen) {
     foreach ($m in [regex]::Matches($html, '<a\s[^>]*?href\s*=\s*["'']([^"''#]+)', 'IgnoreCase')) {
         $h = [System.Net.WebUtility]::HtmlDecode($m.Groups[1].Value.Trim())
         if ($h -match '^(mailto|javascript|tel|data):') { continue }
+        # Otros esquemas que no son páginas web (whatsapp:, skype:, sms:...)
+        if ($h -match '^[a-zA-Z][a-zA-Z0-9+.-]*:' -and $h -notmatch '://') { continue }
         try { $abs = New-Object Uri ((New-Object Uri $base), $h) } catch { continue }
         if ($abs.GetLeftPart([UriPartial]::Authority) -ne $origen) { continue }
         if ($abs.AbsolutePath -match '\.(pdf|jpe?g|png|gif|svg|webp|ico|css|js|zip|mp3|mp4|docx?|xlsx?)$') { continue }
@@ -352,6 +355,28 @@ function Extraer-Enlaces([string]$html, [string]$base, [string]$origen) {
     return ,$salida
 }
 
+# Acepta la URL tal y como la escriba el usuario y la deja lista para descargar:
+#   "  https://web.com/mi página "  ->  https://web.com/mi%20p%C3%A1gina
+#   localhost:3000/informes         ->  http://localhost:3000/informes
+#   C:\carpeta\pagina.html          ->  file:///C:/carpeta/pagina.html
+# Devuelve "" si no hay URL o no se puede interpretar.
+function Preparar-Url([string]$u) {
+    if ($null -eq $u) { return "" }
+    # Fuera espacios, comillas y < > de los extremos (al copiar y pegar)
+    $u = $u.Trim().Trim('"', "'", '<', '>').Trim()
+    if ($u -eq "") { return "" }
+    if ($u.StartsWith("~/") -or $u.StartsWith("~\")) { $u = Join-Path $HOME $u.Substring(2) }
+    if ($u -match '^[a-zA-Z]:[\\/]' -or $u.StartsWith('\\') -or ($u.StartsWith('/') -and -not $u.StartsWith('//'))) {
+        try { return (New-Object Uri ([IO.Path]::GetFullPath($u))).AbsoluteUri } catch { return "" }
+    }
+    if ($u -notmatch '^[a-zA-Z][a-zA-Z0-9+.-]*://') {
+        if ($u.StartsWith('//')) { $u = "http:$u" } else { $u = "http://$u" }
+    }
+    $r = $null
+    if ([Uri]::TryCreate($u, [UriKind]::Absolute, [ref]$r)) { return $r.AbsoluteUri }
+    return ""
+}
+
 # =============================================================== PROGRAMA
 Write-Host "============================================================"
 Write-Host "  SCRAPER DE PALABRAS CLAVE  (Windows)"
@@ -359,24 +384,52 @@ Write-Host "============================================================"
 
 $URL_DEF = ""; $MAX_DEF = 10; $script:TRADUCTOR_ONLINE = $true; $script:CONFIRMAR_TRADUCCION = $true
 $PALABRAS_CONTEXTO = 5; $MAX_FRASES = 100
+# Lee CLAVE=valor de config.txt sin exigir un formato estricto: da igual
+# mayúsculas/minúsculas, espacios alrededor del "=" o comillas en el valor.
+$VISTAS = @{}
 if (Test-Path $CONFIG) {
     foreach ($l in [IO.File]::ReadAllLines($CONFIG, $UTF8)) {
-        if ($l -match '^URL=(.*)$')            { $URL_DEF = $Matches[1].Trim() }
-        if ($l -match '^MAX_PAGINAS=(\d+)\s*$') { $MAX_DEF = [int]$Matches[1] }
-        if ($l -match '^TRADUCTOR_ONLINE=\s*no\s*$') { $script:TRADUCTOR_ONLINE = $false }
-        if ($l -match '^CONFIRMAR_TRADUCCION=\s*no\s*$') { $script:CONFIRMAR_TRADUCCION = $false }
-        if ($l -match '^PALABRAS_CONTEXTO=(\d+)\s*$') { $PALABRAS_CONTEXTO = [int]$Matches[1] }
-        if ($l -match '^MAX_FRASES=(\d+)\s*$') { $MAX_FRASES = [int]$Matches[1] }
+        $l = $l.Trim()
+        if ($l -eq "" -or $l.StartsWith("#")) { continue }
+        $p = $l.IndexOf("=")
+        if ($p -lt 1) { continue }
+        $clave = $l.Substring(0, $p).Trim().ToUpperInvariant()
+        if ($VISTAS.ContainsKey($clave)) { continue }          # vale la primera aparición
+        $VISTAS[$clave] = $true
+        $v = $l.Substring($p + 1).Trim()
+        if ($v.Length -ge 2 -and (($v[0] -eq '"' -and $v[-1] -eq '"') -or ($v[0] -eq "'" -and $v[-1] -eq "'"))) {
+            $v = $v.Substring(1, $v.Length - 2)
+        }
+        $num = $v -replace '\s', ''
+        switch ($clave) {
+            'URL'                  { $URL_DEF = $v }
+            'MAX_PAGINAS'          { if ($num -match '^\d+$') { $MAX_DEF = [int]$num } }
+            'TRADUCTOR_ONLINE'     { if ($num -ieq 'no') { $script:TRADUCTOR_ONLINE = $false } }
+            'CONFIRMAR_TRADUCCION' { if ($num -ieq 'no') { $script:CONFIRMAR_TRADUCCION = $false } }
+            'PALABRAS_CONTEXTO'    { if ($num -match '^\d+$') { $PALABRAS_CONTEXTO = [int]$num } }
+            'MAX_FRASES'           { if ($num -match '^\d+$') { $MAX_FRASES = [int]$num } }
+        }
     }
 }
 
+$Url = Preparar-Url $Url
 if ($Url -eq "") {
     Write-Host "Pulsa Enter para usar la URL que aparece entre corchetes (la de config\config.txt) o escribe otra."
-    $Url = Read-Host "URL de la web [$URL_DEF]"
-    if ($Url.Trim() -eq "") { $Url = $URL_DEF }
+    Write-Host "Vale cualquier dirección: con o sin http://, con espacios o tildes, localhost:3000, una IP..."
+    while ($Url -eq "") {
+        $escrita = Read-Host "URL de la web [$URL_DEF]"
+        if ($null -eq $escrita -or $escrita.Trim() -eq "") {
+            if ($URL_DEF.Trim() -eq "") {
+                if ($null -eq $escrita) { break }
+                Write-Host "   No hay ninguna URL en config\config.txt: escribe una."; continue
+            }
+            $escrita = $URL_DEF
+        }
+        $Url = Preparar-Url $escrita
+        if ($Url -eq "") { Write-Host "   No se entiende '$escrita' como dirección web. Prueba otra vez." }
+    }
+    if ($Url -eq "") { Write-Host "No se ha indicado ninguna URL. Saliendo."; exit 1 }
 }
-$Url = $Url.Trim()
-if ($Url -notmatch '^(https?|file)://') { $Url = "http://$Url" }
 if ($MaxPaginas -le 0) { $MaxPaginas = $MAX_DEF }
 if ($MaxPaginas -le 0) { $MaxPaginas = 1 }
 

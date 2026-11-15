@@ -79,7 +79,8 @@ Más palabras (Enter vacío para empezar) >               <- Enter vacío: empie
 El scraper **no** lee la pestaña que tengas abierta en el navegador. Descarga él mismo la página por HTTP desde la URL indicada.
 
 **Descarga**
-- El HTML de la URL y de las páginas a las que enlaza **dentro de la misma web**, hasta `MAX_PAGINAS`, con 1 segundo de pausa entre páginas.
+- La página de la URL y las páginas a las que enlaza **dentro de la misma web**, hasta `MAX_PAGINAS`, con 1 segundo de pausa entre páginas.
+- Lee cualquier página de texto: HTML, XML (como los informes de DeepSight), JSON o texto plano.
 
 **No descarga**
 - Imágenes, vídeos, CSS, JavaScript ni PDF.
@@ -93,7 +94,20 @@ El scraper **no** lee la pestaña que tengas abierta en el navegador. Descarga �
 - No inicia sesión: en una web con login verá la pantalla de acceso.
 - No ejecuta JavaScript: no verá el texto que la página pinta después de cargar.
 
-Si la web es local (XAMPP, `localhost`…), tiene que estar arrancada. También acepta `file:///ruta/pagina.html`.
+Si la web es local (XAMPP, `localhost`…), tiene que estar arrancada.
+
+**La URL no necesita un formato concreto.** Se acepta tal y como la escribas o la pegues, tanto en `config.txt` como al arrancar:
+
+| Escribes | Se usa |
+|---|---|
+| `localhost:3000/informes` o `192.168.1.20` | `http://` delante |
+| `https://web.com/mi página` | espacios, tildes y ñ codificados (`mi%20p%C3%A1gina`) |
+| `"https://web.com"` o `<https://web.com>` | sin las comillas ni los `< >` |
+| `HTTPS://WEB.COM` | igual que en minúsculas |
+| `/Users/lara/web/index.html`, `~/web/index.html` o `C:\web\index.html` | el fichero local (`file:///…`) |
+| `https://web.com/?filtro[1]=a` | los `[ ]` y `{ }` como texto normal |
+
+Solo hace falta que la dirección exista y responda.
 
 ## Cómo se amplían las palabras
 
@@ -139,12 +153,14 @@ El HTML es un único fichero autónomo: lleva el logo y los datos dentro, así q
 
 | Opción | Por defecto | Qué hace |
 |---|---|---|
-| `URL` | — | Web que se propone al arrancar el scraper |
+| `URL` | — | Web que se propone al arrancar el scraper (cualquier formato, ver arriba) |
 | `MAX_PAGINAS` | `10` | Páginas de la misma web que se recorren (`1` = solo la indicada) |
 | `TRADUCTOR_ONLINE` | `si` | `no` = no se conecta a ningún traductor |
 | `CONFIRMAR_TRADUCCION` | `si` | `no` = acepta las traducciones sin preguntar |
 | `PALABRAS_CONTEXTO` | `5` | Palabras guardadas a cada lado de una coincidencia |
 | `MAX_FRASES` | `100` | Frases por palabra en cada informe (`0` = sin límite) |
+
+El fichero tampoco es estricto: da igual escribir `URL=`, `url =` o `Url = "…"`, y se puede editar en Windows o en Mac. Si una opción aparece dos veces, vale la primera.
 
 ## Formato del informe XML (`resultados/`)
 
