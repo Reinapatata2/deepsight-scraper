@@ -102,6 +102,133 @@ function Par-SingPlur([string]$w, [string]$idioma) {
     return @($w, $p)
 }
 
+# ------------------------------------------- singular/plural español con tildes
+# En el código se escribe A E I O U W N en lugar de á é í ó ú ü ñ (Tildes las
+# cambia), para que el script no dependa de la codificación del fichero.
+function Tildes([string]$s) {
+    $mapa = @{ 'A' = 0xE1; 'E' = 0xE9; 'I' = 0xED; 'O' = 0xF3; 'U' = 0xFA; 'W' = 0xFC; 'N' = 0xF1 }
+    foreach ($k in $mapa.Keys) { $s = $s.Replace($k, [string][char]$mapa[$k]) }
+    return $s
+}
+$V_TILDE  = Tildes 'AEIOU'
+$V_PLANA  = 'aeiou'
+$VOCALES  = Tildes 'aeiouAEIOUW'
+$FUERTES  = Tildes 'aeoAEO'
+$D_TILDE  = Tildes 'IU'                       # í ú: siempre forman sílaba aparte (país)
+$CON_TILDE = Tildes 'AEIOUWN'
+$ESPECIALES_P = @{ (Tildes 'carActer') = 'caracteres'; (Tildes 'rEgimen') = (Tildes 'regImenes'); (Tildes 'espEcimen') = (Tildes 'especImenes') }
+$ESPECIALES_S = @{}; foreach ($k in $ESPECIALES_P.Keys) { $ESPECIALES_S[$ESPECIALES_P[$k]] = $k }
+$RX_ES1 = Tildes '[aeuAEU]des$'
+$RX_ES2 = Tildes '[aeiouAEIOUW][lrn]es$'
+$RX_ES3 = Tildes '[eiouEIOU]ses$'
+$RX_AGUDA_S = Tildes '[AEIOU]s$'
+
+# Minúsculas conservando tildes y ñ, sin signos ("¡Canción!" -> "canción")
+function Limpiar([string]$s) {
+    if ($null -eq $s) { return "" }
+    $sb = New-Object System.Text.StringBuilder
+    foreach ($ch in $s.ToLowerInvariant().ToCharArray()) {
+        $c = [string]$ch
+        if ($CON_TILDE.Contains($c)) { [void]$sb.Append($c) }
+        elseif ($MAPA_TILDES.ContainsKey($c)) { [void]$sb.Append($MAPA_TILDES[$c]) }
+        elseif ($c -cmatch '^[a-z0-9]$') { [void]$sb.Append($c) }
+        else { [void]$sb.Append(' ') }
+    }
+    ($sb.ToString() -creplace ' +', ' ').Trim()
+}
+
+function Es-Vocal([string]$c)  { $c.Length -eq 1 -and $VOCALES.Contains($c) }
+function Es-Fuerte([string]$c) { $c.Length -eq 1 -and $FUERTES.Contains($c) }
+function Vocal-En([string]$w, [int]$i) { $i -ge 0 -and $i -lt $w.Length -and (Es-Vocal ([string]$w[$i])) }
+function Cambiar([string]$w, [int]$i, [string]$c) { $w.Substring(0, $i) + $c + $w.Substring($i + 1) }
+function Quitar-Tilde([string]$c) { $k = $V_TILDE.IndexOf($c, [StringComparison]::Ordinal); if ($k -ge 0) { [string]$V_PLANA[$k] } else { $c } }
+function Poner-Tilde([string]$c)  { $k = $V_PLANA.IndexOf($c, [StringComparison]::Ordinal); if ($k -ge 0) { [string]$V_TILDE[$k] } else { $c } }
+
+# Grupos de vocales que forman sílaba: lista de @(inicio, fin)
+function Grupos-Vocales([string]$w) {
+    $g = New-Object System.Collections.ArrayList; $ant = ""
+    for ($i = 0; $i -lt $w.Length; $i++) {
+        $c = [string]$w[$i]
+        if (-not (Es-Vocal $c)) { $ant = ""; continue }
+        if ($ant -ne "" -and -not ((Es-Fuerte $ant) -and (Es-Fuerte $c)) -and -not $D_TILDE.Contains($ant) -and -not $D_TILDE.Contains($c)) {
+            $g[$g.Count - 1][1] = $i
+        } else { [void]$g.Add(@($i, $i)) }
+        $ant = $c
+    }
+    return ,$g
+}
+function Grupo-De($g, [int]$pos) {   # nº de grupo (desde 1) que contiene la posición, o 0
+    for ($k = 0; $k -lt $g.Count; $k++) { if ($pos -ge $g[$k][0] -and $pos -le $g[$k][1]) { return $k + 1 } }
+    return 0
+}
+# Pone la tilde en el grupo k: en la vocal fuerte, o en la última si son dos débiles
+function Acentuar([string]$w, $g, [int]$k) {
+    $ini = $g[$k - 1][0]; $pos = $g[$k - 1][1]
+    for ($i = $ini; $i -le $g[$k - 1][1]; $i++) { if (Es-Fuerte ([string]$w[$i])) { $pos = $i; break } }
+    return (Cambiar $w $pos (Poner-Tilde ([string]$w[$pos])))
+}
+
+function Es-PluralTildes([string]$s) {
+    if ($s -eq "") { return "" }
+    if ($ESPECIALES_P.ContainsKey($s)) { return $ESPECIALES_P[$s] }
+    $u = [string]$s[$s.Length - 1]
+    $g = Grupos-Vocales $s; $n = $g.Count
+    $pos = $s.IndexOfAny($V_TILDE.ToCharArray())
+    $k = if ($pos -ge 0) { Grupo-De $g $pos } else { 0 }
+    # Llanas o esdrújulas en -s/-x no cambian: crisis, virus, análisis, tórax
+    if (($u -eq 's' -or $u -eq 'x') -and $n -ge 2 -and $k -ne $n) { return $s }
+    if (Es-Vocal $u)    { $p = $s + 's'; $suf = 's' }
+    elseif ($u -eq 'z') { $p = $s.Substring(0, $s.Length - 1) + 'ces'; $suf = 'ces' }
+    else                { $p = $s + 'es'; $suf = 'es' }
+    if ($pos -ge 0) {
+        # Agudas en -n/-s pierden la tilde (canción -> canciones), salvo hiato (país -> países)
+        $c = [string]$s[$pos]
+        $hiato = $D_TILDE.Contains($c) -and ((Vocal-En $s ($pos - 1)) -or (Vocal-En $s ($pos + 1)))
+        if ($suf -eq 'es' -and ($u -eq 'n' -or $u -eq 's') -and $k -eq $n -and -not $hiato) { $p = Cambiar $p $pos (Quitar-Tilde $c) }
+    } elseif ($suf -eq 'es' -and $u -eq 'n' -and $n -ge 2) {
+        $p = Acentuar $p $g ($n - 1)          # examen -> exámenes, joven -> jóvenes
+    }
+    return $p
+}
+
+function Es-SingularTildes([string]$p) {
+    if ($ESPECIALES_S.ContainsKey($p)) { return $ESPECIALES_S[$p] }
+    # ¿Se quita "-es" (ciudades, papeles, flores, canciones, ingleses) o solo
+    # "-s" (pirámides, calles, padres, carnes, viajes, clases)?
+    if ($p -cmatch 'ces$') { $s = $p.Substring(0, $p.Length - 3) + 'z'; $suf = 'ces' }
+    elseif ($p -cmatch $RX_ES1 -or ($p -cmatch $RX_ES2 -and $p -cnotmatch 'lles$') -or $p -cmatch 'yes$' -or
+            $p -cmatch 'relojes$' -or $p -cmatch $RX_ES3) { $s = $p.Substring(0, $p.Length - 2); $suf = 'es' }
+    elseif ($p -cmatch 's$') { $s = $p.Substring(0, $p.Length - 1); $suf = 's' }
+    else { return $p }
+    $u = [string]$s[$s.Length - 1]
+    $g = Grupos-Vocales $s; $n = $g.Count
+    $pos = $s.IndexOfAny($V_TILDE.ToCharArray())
+    $k = if ($pos -ge 0) { Grupo-De $g $pos } else { 0 }
+    if ($pos -ge 0) {
+        if ($suf -eq 'es' -and $u -eq 'n' -and $n -ge 2 -and $k -eq $n - 1) {
+            $s = Cambiar $s $pos (Quitar-Tilde ([string]$s[$pos]))      # exámenes -> examen
+        }
+    } elseif ($suf -eq 'es' -and ($u -eq 'n' -or $u -eq 's') -and $n -ge 2) {
+        $s = Acentuar $s $g $n                                          # canciones -> canción
+    }
+    return $s
+}
+
+# Como Par-SingPlur, pero para una palabra española escrita con sus tildes, que
+# se conservan o se ajustan según las reglas de acentuación:
+#   pirámide -> pirámides    canción -> canciones    examen -> exámenes
+#   país -> países           lápiz -> lápices        crisis -> crisis
+#   canciones -> canción     jóvenes -> joven
+function Es-ParTildes([string]$palabra) {
+    $w = Limpiar $palabra
+    $modo = if (Parece-Plural (Normalizar $w)) { 's' } else { 'p' }
+    if ($w -cmatch $RX_AGUDA_S) { $modo = 'p' }       # inglés, compás, interés: singular
+    $pre = ""; $i = $w.LastIndexOf(' ')
+    if ($i -ge 0) { $pre = $w.Substring(0, $i + 1); $w = $w.Substring($i + 1) }   # solo la última palabra
+    if ($modo -eq 's') { return @(($pre + (Es-SingularTildes $w)), ($pre + $w)) }
+    return @(($pre + $w), ($pre + (Es-PluralTildes $w)))
+}
+
 # ---------------------------------------------------------------- diccionario
 if (-not (Test-Path $DICCIONARIO)) {
     [IO.File]::WriteAllText($DICCIONARIO, "# es_singular;es_plural;en_singular;en_plural`n", $UTF8)
@@ -170,15 +297,16 @@ function Procesar-Palabra([string]$entrada) {
                 # Palabra igual en los dos idiomas (test, hotel): ¿hay otra forma en español?
                 if ($lado -eq "en" -and $palEn -ceq (Normalizar $dispEs)) {
                     $vuelta = Traducir $clave 'en|es'
-                    if ($vuelta -and $vuelta -cne $clave) { $dispEs = $vuelta; $lado = "es" }
+                    if ($vuelta -and (Normalizar $vuelta) -cne $clave) { $dispEs = $vuelta; $lado = "es" }
                 }
             } else {
                 $ida = Traducir $clave 'es|en'
                 if ($ida) {
+                    $ida = Normalizar $ida
                     if ($ida -cne $clave) { $dispEs = $orig; $palEn = $ida }                       # era español
                     else {
                         $vuelta = Traducir $clave 'en|es'
-                        if ($vuelta -and $vuelta -cne $clave) { $dispEs = $vuelta; $palEn = $clave; $lado = "es" }  # era inglés
+                        if ($vuelta -and (Normalizar $vuelta) -cne $clave) { $dispEs = $vuelta; $palEn = $clave; $lado = "es" }  # era inglés
                         else { $dispEs = $orig; $palEn = $clave }                                 # igual en ambos
                     }
                 }
@@ -202,9 +330,8 @@ function Procesar-Palabra([string]$entrada) {
         }
 
         $palEs = Normalizar $dispEs
-        $es = Par-SingPlur $palEs 'es'
-        # Se respeta cómo se escribe en singular (canción, no cancion)
-        if (-not (Parece-Plural $palEs)) { $es = @($dispEs, $es[1]) }
+        # Singular y plural con sus tildes (pirámide -> pirámides, canción -> canciones)
+        $es = Es-ParTildes $dispEs
         foreach ($t in $TERMINOS) {
             if ((Normalizar $t.Termino) -ceq (Normalizar $es[0])) { Write-Host "   ('$($t.Termino)' ya estaba en la lista)"; return }
         }
@@ -266,7 +393,8 @@ function Traducir-Wikt([string]$w, [int]$prof = 0) {
     return $null
 }
 
-# MyMemory: devuelve la traducción normalizada, o $null si no hay internet / cuota.
+# MyMemory: devuelve la traducción en minúsculas y con sus tildes, o $null si no
+# hay internet / cuota.
 function Traducir([string]$texto, [string]$par) {
     if (-not $script:TRADUCTOR_ONLINE) { return $null }
     try {
@@ -276,7 +404,7 @@ function Traducir([string]$texto, [string]$par) {
         if ([string]$r.responseStatus -ne "200") { return $null }
         $t = [string]$r.responseData.translatedText
         if ($t -eq "" -or $t -match 'mymemory') { return $null }
-        $t = (Normalizar $t) -creplace '^(the|a|an|el|la|los|las|un|una|unos|unas) ', ''
+        $t = (Limpiar $t) -creplace '^(the|a|an|el|la|los|las|un|una|unos|unas) ', ''
         if ($t -eq "") { return $null }
         return $t
     } catch { return $null }

@@ -118,7 +118,7 @@ Solo hace falta que la dirección exista y responda.
    - **MyMemory** de reserva.
    - Sin conexión, te pregunta la traducción.
 4. Te enseña la traducción: la aceptas con Enter o escribes la correcta. Después se guarda en el diccionario y no vuelve a preguntar por esa palabra.
-5. El singular y el plural se generan con reglas del español y del inglés (`lápiz` → lápices, `city` → cities).
+5. El singular y el plural se generan con reglas del español y del inglés (`lápiz` → lápices, `city` → cities). En español se respetan las tildes: `pirámide` → pirámides, `canción` → canciones, `examen` → exámenes, `país` → países; y las palabras como `crisis` o `virus` no cambian en plural.
 6. Solo cuentan palabras completas (`colegio` no cuenta dentro de `colegiodemo`). También funcionan expresiones como `high school`.
 7. Cuando una variante es igual en los dos idiomas (`color`) o en singular y plural (`data`), se marca como `ambos` y se cuenta una vez.
 

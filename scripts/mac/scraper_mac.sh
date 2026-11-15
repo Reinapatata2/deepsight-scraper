@@ -52,6 +52,16 @@ minusculas() {
 # Clave normalizada -> texto para mostrar (devuelve la ñ)
 mostrar() { printf '%s' "$1" | sed 's/N/ñ/g'; }
 
+# Las vocales con tilde, la ü y la ñ se cambian por una mayúscula mientras se
+# trabaja con ellas (todo lo demás va en minúsculas): á->A ... ü->W, ñ->N
+TILDE_A='s/á/A/g;s/é/E/g;s/í/I/g;s/ó/O/g;s/ú/U/g;s/ü/W/g;s/ñ/N/g'
+TILDE_D='s/A/á/g;s/E/é/g;s/I/í/g;s/O/ó/g;s/U/ú/g;s/W/ü/g;s/N/ñ/g'
+# Minúsculas conservando tildes y ñ, sin signos ("¡Canción!" -> "canción")
+limpiar() {
+    minusculas "$1" | sed "$TILDE_A" | sed "$NORM_SED" \
+        | sed 's/[^a-zA-Z0-9]/ /g; s/  */ /g; s/^ //; s/ $//' | sed "$TILDE_D"
+}
+
 xml_esc() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g'; }
 
 # ------------------------------------------------------ reglas singular/plural
@@ -102,6 +112,92 @@ par_sing_plur() {
         s="$w"; p="$("${idioma}_plural" "$w")"
     fi
     echo "$s;$p"
+}
+
+# Como par_sing_plur, pero para una palabra española escrita con sus tildes, que
+# se conservan o se ajustan según las reglas de acentuación:
+#   pirámide -> pirámides    canción -> canciones    examen -> exámenes
+#   país -> países           lápiz -> lápices        crisis -> crisis
+#   canciones -> canción     jóvenes -> joven        sofás -> sofá
+es_par_tildes() {
+    local w modo=p
+    w="$(limpiar "$1")"
+    parece_plural "$(normalizar "$w")" && modo=s
+    # Con tilde en la última sílaba es singular: inglés, compás, interés
+    case "$w" in *ás|*és|*ís|*ós|*ús) modo=p ;; esac
+    printf '%s\n' "$w" | sed "$TILDE_A" | awk -v modo="$modo" '
+        function vocal(c)   { return c != "" && index("aeiouAEIOUW", c) > 0 }
+        function fuerte(c)  { return c != "" && index("aeoAEO", c) > 0 }
+        function debil_tildada(c) { return c == "I" || c == "U" }
+        function quitar(c)  { return c == "A" ? "a" : c == "E" ? "e" : c == "I" ? "i" : c == "O" ? "o" : c == "U" ? "u" : c }
+        function poner(c)   { return c == "a" ? "A" : c == "e" ? "E" : c == "i" ? "I" : c == "o" ? "O" : c == "u" ? "U" : c }
+        function cambiar(w, i, c) { return substr(w, 1, i - 1) c substr(w, i + 1) }
+        # Grupos de vocales que forman sílaba (diptongos juntos; hiatos y tildes en i/u separan)
+        function grupos(w,   n, i, c, ant) {
+            n = 0; ant = ""
+            for (i = 1; i <= length(w); i++) {
+                c = substr(w, i, 1)
+                if (!vocal(c)) { ant = ""; continue }
+                if (ant != "" && !(fuerte(ant) && fuerte(c)) && !debil_tildada(ant) && !debil_tildada(c)) GF[n] = i
+                else { n++; GI[n] = i; GF[n] = i }
+                ant = c
+            }
+            return n
+        }
+        function tilde(w) { return match(w, /[AEIOU]/) ? RSTART : 0 }
+        function grupo_de(pos, n,   k) { for (k = 1; k <= n; k++) if (pos >= GI[k] && pos <= GF[k]) return k; return 0 }
+        # Pone la tilde en el grupo k: en la vocal fuerte, o en la última si son dos débiles
+        function acentuar(w, k,   i, pos) {
+            pos = GF[k]
+            for (i = GI[k]; i <= GF[k]; i++) if (fuerte(substr(w, i, 1))) { pos = i; break }
+            return cambiar(w, pos, poner(substr(w, pos, 1)))
+        }
+        function plural(s,   n, pos, k, u, p, suf) {
+            if (s == "carActer") return "caracteres"
+            if (s == "rEgimen") return "regImenes"
+            if (s == "espEcimen") return "especImenes"
+            u = substr(s, length(s), 1); n = grupos(s); pos = tilde(s); k = pos ? grupo_de(pos, n) : 0
+            # Llanas o esdrújulas en -s/-x no cambian: crisis, virus, análisis, tórax
+            if ((u == "s" || u == "x") && n >= 2 && k != n) return s
+            if (vocal(u))     { p = s "s"; suf = "s" }
+            else if (u == "z") { p = substr(s, 1, length(s) - 1) "ces"; suf = "ces" }
+            else               { p = s "es"; suf = "es" }
+            if (pos) {
+                # Agudas en -n/-s pierden la tilde (canción -> canciones), salvo hiato (país -> países)
+                if (suf == "es" && (u == "n" || u == "s") && k == n \
+                    && !(debil_tildada(substr(s, pos, 1)) && (vocal(substr(s, pos - 1, 1)) || vocal(substr(s, pos + 1, 1)))))
+                    p = cambiar(p, pos, quitar(substr(p, pos, 1)))
+            } else if (suf == "es" && u == "n" && n >= 2) {
+                p = acentuar(p, n - 1)          # examen -> exámenes, joven -> jóvenes
+            }
+            return p
+        }
+        function singular(p,   s, suf, u, n, pos, k) {
+            if (p == "caracteres") return "carActer"
+            if (p == "regImenes") return "rEgimen"
+            if (p == "especImenes") return "espEcimen"
+            # ¿Se quita "-es" (ciudades, papeles, flores, canciones, ingleses) o solo
+            # "-s" (pirámides, calles, padres, carnes, viajes, clases)?
+            if (p ~ /ces$/) { s = substr(p, 1, length(p) - 3) "z"; suf = "ces" }
+            else if (p ~ /[aeuAEU]des$/ || p ~ /[aeiouAEIOUW][lrn]es$/ && p !~ /lles$/ || p ~ /yes$/ \
+                     || p ~ /relojes$/ || p ~ /[eiouEIOU]ses$/) { s = substr(p, 1, length(p) - 2); suf = "es" }
+            else if (p ~ /s$/) { s = substr(p, 1, length(p) - 1); suf = "s" }
+            else return p
+            u = substr(s, length(s), 1); n = grupos(s); pos = tilde(s); k = pos ? grupo_de(pos, n) : 0
+            if (pos) {
+                if (suf == "es" && u == "n" && n >= 2 && k == n - 1)
+                    s = cambiar(s, pos, quitar(substr(s, pos, 1)))   # exámenes -> examen
+            } else if (suf == "es" && (u == "n" || u == "s") && n >= 2) {
+                s = acentuar(s, n)                                  # canciones -> canción
+            }
+            return s
+        }
+        {   # Solo cambia la última palabra (hoja de cálculo -> hoja de cálculos)
+            pre = ""; w = $0
+            if (match(w, / [^ ]*$/)) { pre = substr(w, 1, RSTART); w = substr(w, RSTART + 1) }
+            if (modo == "s") print pre singular(w) ";" pre w
+            else             print pre w ";" pre plural(w)
+        }' | sed "$TILDE_D"
 }
 
 # ---------------------------------------------------------------- diccionario
@@ -182,10 +278,11 @@ traducir_wikt() {
     esac
 }
 
-# MyMemory: devuelve la traducción normalizada, o falla si no hay internet / cuota.
-UNI_SED='s/\\u00[eE]1/a/g;s/\\u00[eE]9/e/g;s/\\u00[eE][dD]/i/g;s/\\u00[fF]3/o/g;s/\\u00[fF][aA]/u/g;'
-UNI_SED+='s/\\u00[fF][cC]/u/g;s/\\u00[fF]1/ñ/g;s/\\u00[dD]1/ñ/g;s/\\u00[cC]1/a/g;s/\\u00[cC]9/e/g;'
-UNI_SED+='s/\\u00[cC][dD]/i/g;s/\\u00[dD]3/o/g;s/\\u00[dD][aA]/u/g;s/\\u0027/ /g;s/\\u[0-9a-fA-F]\{4\}/ /g'
+# MyMemory: devuelve la traducción en minúsculas y con sus tildes, o falla si no
+# hay internet / cuota. Las letras que llegan como á se convierten en á.
+UNI_SED='s/\\u00[eE]1/á/g;s/\\u00[eE]9/é/g;s/\\u00[eE][dD]/í/g;s/\\u00[fF]3/ó/g;s/\\u00[fF][aA]/ú/g;'
+UNI_SED+='s/\\u00[fF][cC]/ü/g;s/\\u00[fF]1/ñ/g;s/\\u00[dD]1/ñ/g;s/\\u00[cC]1/á/g;s/\\u00[cC]9/é/g;'
+UNI_SED+='s/\\u00[cC][dD]/í/g;s/\\u00[dD]3/ó/g;s/\\u00[dD][aA]/ú/g;s/\\u00[dD][cC]/ü/g;s/\\u0027/ /g;s/\\u[0-9a-fA-F]\{4\}/ /g'
 traducir() {   # $1=texto  $2="es|en" o "en|es"
     local r
     r="$(curl -sS --max-time 8 -G -A "$USER_AGENT" \
@@ -194,7 +291,7 @@ traducir() {   # $1=texto  $2="es|en" o "en|es"
     case "$r" in *'"responseStatus":200'*|*'"responseStatus":"200"'*) ;; *) return 1 ;; esac
     r="$(printf '%s' "$r" | sed -n 's/.*"translatedText":"\([^"]*\)".*/\1/p' | sed "$UNI_SED")"
     case "$r" in ''|*MYMEMORY*|*mymemory*) return 1 ;; esac
-    r="$(normalizar "$r" | sed -E 's/^(the|a|an|el|la|los|las|un|una|unos|unas) //')"
+    r="$(limpiar "$r" | sed -E 's/^(the|a|an|el|la|los|las|un|una|unos|unas) //')"
     [ -n "$r" ] && printf '%s' "$r"
 }
 
@@ -232,18 +329,19 @@ EOF
                 case "$res" in
                     es:*) res="${res#es:}"; disp_es="${res%%|*}"; pal_en="$(normalizar "${res#*|}")" ;;
                     en)   pal_en="$clave"; lado="es"
-                          disp_es="$(mostrar "$(traducir "$clave" "en|es")")" ;;
+                          disp_es="$(traducir "$clave" "en|es")" ;;
                 esac
                 # Palabra igual en los dos idiomas (test, hotel): ¿hay otra forma en español?
                 if [ "$lado" = "en" ] && [ "$pal_en" = "$(normalizar "$disp_es")" ] \
-                   && vuelta="$(traducir "$clave" "en|es")" && [ "$vuelta" != "$clave" ]; then
-                    disp_es="$(mostrar "$vuelta")"; lado="es"
+                   && vuelta="$(traducir "$clave" "en|es")" && [ "$(normalizar "$vuelta")" != "$clave" ]; then
+                    disp_es="$vuelta"; lado="es"
                 fi
             elif ida="$(traducir "$clave" "es|en")"; then
+                ida="$(normalizar "$ida")"
                 if [ "$ida" != "$clave" ]; then
                     disp_es="$orig"; pal_en="$ida"                            # era español
-                elif vuelta="$(traducir "$clave" "en|es")" && [ "$vuelta" != "$clave" ]; then
-                    disp_es="$(mostrar "$vuelta")"; pal_en="$clave"; lado="es"  # era inglés
+                elif vuelta="$(traducir "$clave" "en|es")" && [ "$(normalizar "$vuelta")" != "$clave" ]; then
+                    disp_es="$vuelta"; pal_en="$clave"; lado="es"               # era inglés
                 else
                     disp_es="$orig"; pal_en="$clave"                          # igual en ambos
                 fi
@@ -269,9 +367,8 @@ EOF
         fi
 
         pal_es="$(normalizar "$disp_es")"
-        es="$(par_sing_plur "$pal_es" es)"
-        # Se respeta cómo se escribe en singular (canción, no cancion)
-        if ! parece_plural "$pal_es"; then es="$(mostrar "$disp_es");${es#*;}"; fi
+        # Singular y plural con sus tildes (pirámide -> pirámides, canción -> canciones)
+        es="$(es_par_tildes "$disp_es")"
         for t in "${T_TERM[@]+"${T_TERM[@]}"}"; do
             if [ "$(normalizar "$t")" = "$(normalizar "${es%%;*}")" ]; then
                 echo "   ('$t' ya estaba en la lista)"; return
