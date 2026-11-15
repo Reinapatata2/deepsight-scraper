@@ -20,7 +20,7 @@ deepsight-scraper/
 │   └── manual.md                        Este manual
 ├── estadisticas/                        Informes HTML y XML generados (no se borran)
 ├── recursos/
-│   ├── logo.svg                         Símbolo de DeepSight
+│   ├── logo.png                         Logo de DeepSight (el de la web)
 │   └── plantilla_estadisticas.html      Diseño del informe de estadísticas
 ├── resultados/                          XML del scraper pendientes de estadísticas
 └── scripts/                             Código de cada sistema
@@ -177,7 +177,7 @@ El HTML es un único fichero autónomo: lleva el logo y los datos dentro, así q
 ## Personalizar el diseño
 
 - **Colores:** están en el bloque `:root` al principio de `recursos/plantilla_estadisticas.html`. Los tres sistemas usan esa plantilla. Los colores de los gráficos están validados para distinguirse sobre el fondo azul marino, también con daltonismo.
-- **Logo:** `recursos/logo.svg` es una recreación del símbolo de DeepSight. Si guardas el original como `recursos/logo.png`, se usará ese en su lugar. Solo afecta a los informes que se generen a partir de entonces.
+- **Logo:** `recursos/logo.png` es el logo oficial, copiado del repositorio de la web (`DeepSight-reports/public/assets/img/logo.png`). Se muestra igual que en la web: en un círculo con borde menta. Si el logo cambia en la web, sustituye este fichero. Solo afecta a los informes que se generen a partir de entonces.
 
 ## Notas para desarrollar
 
